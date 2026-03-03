@@ -136,6 +136,33 @@ tts=cartesia.TTS(sample_rate=16000)  # match SpatialReal's AvatarKit default
 
 ---
 
+---
+
+## 9. High STT Latency + Speech "Swallowed" (Silero VAD Backlog)
+
+**Symptom:** STT final transcript arrived 3-7 seconds after the user finished speaking. Transcripts were sometimes garbled or truncated ("Could you you're"). Multiple `user_state_changed` cycles (start/stop/start) appeared for a single utterance.
+
+**Cause:** Silero VAD processes audio through ONNX Runtime in its own queue. Even with CoreML acceleration on Apple Silicon, this queue can build up under load, delaying the audio that Deepgram receives. Additionally, Silero's default silence threshold occasionally cuts speech mid-sentence, sending Deepgram fragmented audio.
+
+**Fix:** Add `turn_detection=MultilingualModel()` to `AgentSession` and set `endpointing_ms=100` in Deepgram STT:
+
+```python
+from livekit.plugins.turn_detector.multilingual import MultilingualModel
+
+session = AgentSession(
+    vad=ctx.proc.userdata["vad"],
+    stt=deepgram.STT(model="nova-3", interim_results=True, endpointing_ms=100, no_delay=True),
+    turn_detection=MultilingualModel(),  # semantic end-of-turn prediction
+    min_endpointing_delay=0.5,
+    max_endpointing_delay=5.0,
+    ...
+)
+```
+
+`MultilingualModel` is a small local LLM (bundled in `livekit-agents[turn-detector]`) that predicts whether the user has finished their turn based on transcript semantics, not just silence duration. It prevents false-positive cuts when the user pauses mid-sentence, and doesn't wait unnecessarily long when the turn is clearly complete.
+
+---
+
 ## Summary Table
 
 | # | Symptom | Root Cause | Fix |
@@ -148,3 +175,4 @@ tts=cartesia.TTS(sample_rate=16000)  # match SpatialReal's AvatarKit default
 | 6 | Avatar animation stutters | Jitter buffer starvation | `enableJitterBuffer: false` |
 | 7 | User hears own voice echoed | `LiveKitProvider` auto-plays all audio tracks | Unsubscribe `avatar-viewer` from non-avatar audio |
 | 8 | Voice 1.5× too slow | Cartesia 24 kHz → SpatialReal expects 16 kHz | `cartesia.TTS(sample_rate=16000)` |
+| 9 | STT 3-7s delay + garbled transcripts | Silero VAD audio backlog + false cuts mid-sentence | `turn_detection=MultilingualModel()` + `endpointing_ms=100` |

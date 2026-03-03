@@ -1,5 +1,7 @@
 # SpatialReal Voice Agent
 
+![Avatar screenshot](docs/avatar-screenshot.png)
+
 ## Background
 
 The team at SpatialReal reached out asking me to test their real-time avatar engine. I had published a few pet projects involving voice chat interfaces, so apparently I was on their radar. Since I had been thinking about adding an avatar feature to some of those projects anyway, I agreed.
