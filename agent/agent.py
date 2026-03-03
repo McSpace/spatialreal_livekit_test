@@ -188,6 +188,12 @@ async def entrypoint(ctx: JobContext):
             logger.warning(
                 ">>> [5] AvatarSession failed to start (%s) — continuing without avatar", e
             )
+            # Tell the frontend to switch to audio-only mode so RoomAudioRenderer
+            # unmutes and the user can hear the agent's TTS directly.
+            await ctx.room.local_participant.publish_data(
+                json.dumps({"type": "avatarFailed"}).encode(),
+                reliable=True,
+            )
     else:
         logger.info(">>> [4-5] Avatar disabled — skipping AvatarSession")
 

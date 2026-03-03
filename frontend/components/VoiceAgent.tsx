@@ -7,7 +7,9 @@ import {
   ControlBar,
   useVoiceAssistant,
   BarVisualizer,
+  useRoomContext,
 } from '@livekit/components-react'
+import { RoomEvent } from 'livekit-client'
 import { AvatarView } from './AvatarView'
 
 interface SessionData {
@@ -27,6 +29,9 @@ export function VoiceAgent() {
   const [avatarSupported, setAvatarSupported] = useState(false)
   // User preference for this session.
   const [useAvatar, setUseAvatar] = useState(true)
+  // Runtime avatar state — can be flipped to false mid-session if the agent
+  // signals avatarFailed (e.g. SpatialReal HTTP 402).
+  const [avatarActive, setAvatarActive] = useState(false)
 
   useEffect(() => {
     fetch('/api/token')
@@ -52,6 +57,7 @@ export function VoiceAgent() {
 
       if (!res.ok) throw new Error(`Token request failed: ${res.status}`)
       const data = await res.json()
+      setAvatarActive(data.avatarEnabled)
       setSession(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start session')
@@ -60,7 +66,10 @@ export function VoiceAgent() {
     }
   }, [useAvatar])
 
-  const endSession = useCallback(() => setSession(null), [])
+  const endSession = useCallback(() => {
+    setSession(null)
+    setAvatarActive(false)
+  }, [])
 
   if (!session) {
     return (
@@ -128,13 +137,14 @@ export function VoiceAgent() {
         livekitUrl={session.url}
         avatarToken={session.avatarToken}
         roomName={session.roomName}
-        avatarEnabled={session.avatarEnabled}
+        avatarActive={avatarActive}
+        onAvatarFailed={() => setAvatarActive(false)}
       />
 
       {/* Mute when avatar is active: AvatarPlayer's own WebRTC connection plays
-          spatialreal-avatar audio. Without avatar, the agent publishes audio
-          directly as a normal LiveKit track — let RoomAudioRenderer play it. */}
-      <RoomAudioRenderer muted={session.avatarEnabled} />
+          spatialreal-avatar audio. Without avatar (or after avatarFailed signal),
+          the agent publishes audio directly — let RoomAudioRenderer play it. */}
+      <RoomAudioRenderer muted={avatarActive} />
 
       <ControlBar
         controls={{ microphone: true, camera: false, screenShare: false, leave: true }}
@@ -147,14 +157,34 @@ function RoomContent({
   livekitUrl,
   avatarToken,
   roomName,
-  avatarEnabled,
+  avatarActive,
+  onAvatarFailed,
 }: {
   livekitUrl: string
   avatarToken?: string
   roomName: string
-  avatarEnabled: boolean
+  avatarActive: boolean
+  onAvatarFailed: () => void
 }) {
   const { state, audioTrack } = useVoiceAssistant()
+  const room = useRoomContext()
+
+  // Listen for avatarFailed data message from the agent.
+  // Sent when SpatialReal connection fails (e.g. HTTP 402 quota exhausted).
+  useEffect(() => {
+    const handleData = (payload: Uint8Array) => {
+      try {
+        const msg = JSON.parse(new TextDecoder().decode(payload))
+        if (msg.type === 'avatarFailed') {
+          onAvatarFailed()
+        }
+      } catch {
+        // ignore malformed messages
+      }
+    }
+    room.on(RoomEvent.DataReceived, handleData)
+    return () => { room.off(RoomEvent.DataReceived, handleData) }
+  }, [room, onAvatarFailed])
 
   return (
     <div
@@ -168,7 +198,7 @@ function RoomContent({
         padding: 24,
       }}
     >
-      {avatarEnabled && avatarToken && (
+      {avatarActive && avatarToken && (
         <AvatarView
           livekitUrl={livekitUrl}
           avatarToken={avatarToken}
