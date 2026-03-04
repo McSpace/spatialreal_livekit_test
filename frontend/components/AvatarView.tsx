@@ -74,7 +74,7 @@ export function AvatarView({
         localPlayer = player
         playerRef.current = player
 
-        player.on('error', (err) => {
+        player.on('error', (err: unknown) => {
           console.error('[AvatarPlayer] error:', err)
           setStatus('error')
         })
@@ -128,8 +128,8 @@ export function AvatarView({
   }, [livekitUrl, avatarToken, roomName])
 
   return (
-    <div style={{ position: 'relative', width, height }}>
-      {/* Container must have explicit width/height — required by AvatarKit */}
+    <div style={{ position: 'fixed', inset: 0 }}>
+      {/* Container must have explicit pixel width/height — required by AvatarKit */}
       <div ref={containerRef} style={{ width, height }} />
       {status === 'loading' && (
         <div
