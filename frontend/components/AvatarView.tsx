@@ -135,6 +135,13 @@ export function AvatarView({
     }
   }, [livekitUrl, avatarToken, roomName])
 
+  // Preload the background image as soon as the component mounts so it is
+  // ready by the time the avatar finishes loading.
+  useEffect(() => {
+    const img = new Image()
+    img.src = AVATAR_BG
+  }, [])
+
   return (
     // Entire layer (background + canvas) is invisible until onFirstRendering fires.
     // This prevents the background from appearing before the avatar is rendered.
@@ -153,13 +160,18 @@ export function AvatarView({
         style={{
           position: 'absolute',
           inset: 0,
-          backgroundImage: `url(${AVATAR_BG})`,
+          backgroundImage: `url("${AVATAR_BG}")`,
           backgroundSize: 'cover',
           backgroundPosition: 'center top',
         }}
       />
-      {/* Avatar canvas — AvatarKit requires an element with explicit px dimensions */}
-      <div ref={containerRef} style={{ width, height }} />
+      {/*
+        Avatar canvas — must be position:absolute so it forms a positioned
+        element. DOM order (after the background div) ensures it stacks above
+        the background. AvatarKit reads offsetWidth/offsetHeight so we keep
+        explicit pixel dimensions matching the viewport.
+      */}
+      <div ref={containerRef} style={{ position: 'absolute', inset: 0, width, height }} />
     </div>
   )
 }
