@@ -10,6 +10,9 @@ import {
 } from '@spatialwalk/avatarkit'
 import { AvatarPlayer, LiveKitProvider } from '@spatialwalk/avatarkit-rtc'
 
+const AVATAR_BG =
+  'https://cdn.spatialwalk.cloud/character-resource-bj/assets/2026-02-09/73c1e543-d425-4062-b9ff-9f7a517a56f4.jpg?imageView2/2/w/1920/q/80/format/webp'
+
 interface AvatarViewProps {
   livekitUrl: string
   avatarToken: string
@@ -133,39 +136,30 @@ export function AvatarView({
   }, [livekitUrl, avatarToken, roomName])
 
   return (
-    <div style={{ position: 'fixed', inset: 0 }}>
-      {/* Container must have explicit pixel width/height — required by AvatarKit */}
+    // Entire layer (background + canvas) is invisible until onFirstRendering fires.
+    // This prevents the background from appearing before the avatar is rendered.
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        opacity: status === 'ready' ? 1 : 0,
+        transition: 'opacity 0.5s ease',
+        // Block pointer events while hidden so clicks pass through to controls below.
+        pointerEvents: status === 'ready' ? 'auto' : 'none',
+      }}
+    >
+      {/* Background image — renders together with the avatar on first reveal */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundImage: `url(${AVATAR_BG})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center top',
+        }}
+      />
+      {/* Avatar canvas — AvatarKit requires an element with explicit px dimensions */}
       <div ref={containerRef} style={{ width, height }} />
-      {status === 'loading' && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#888',
-            fontSize: 14,
-          }}
-        >
-          Loading avatar…
-        </div>
-      )}
-      {status === 'error' && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#f87171',
-            fontSize: 14,
-          }}
-        >
-          Avatar unavailable
-        </div>
-      )}
     </div>
   )
 }
