@@ -119,11 +119,16 @@ export function AvatarView({
 
     return () => {
       cancelled = true
-      // Disconnect/dispose only the instances created by THIS effect invocation.
-      localPlayer?.disconnect()
-      localView?.dispose()
       playerRef.current = null
       viewRef.current = null
+      // disconnect() schedules async LiveKit room events (Promise chain). If we
+      // call dispose() synchronously right after, those events fire later and
+      // AvatarKit tries to render an idle frame on an already-disposed view →
+      // "AvatarView not initialized". Delaying dispose() to a macrotask lets
+      // all in-flight disconnect events complete first.
+      localPlayer?.disconnect()
+      const v = localView
+      setTimeout(() => v?.dispose(), 0)
     }
   }, [livekitUrl, avatarToken, roomName])
 
